@@ -108,6 +108,7 @@ def validate(model, val_loader, criterion,  using_wandb=False, tf=True, epoch=0)
 			val_loss += float(loss)
 			if(using_wandb):
 				wandb.log({"val_loss":float(val_loss / (i + 1)), "epoch":epoch})
+		break
 	return float(val_loss / (i + 1))
 
 def get_dataloaders(cfg):
@@ -119,37 +120,39 @@ def get_dataloaders(cfg):
 
 def training(cfg):
 	train_loader, val_loader = get_dataloaders(cfg)
-	model = recurrent_unet(in_channels= 2, n_classes=1).to(device)
+	model = unet(in_channels= 2, n_classes=1).to(device)
 	optimizer = optim.Adam(model.parameters(), lr = cfg["lr"])
 	scheduler = None
 	criterion = torch.nn.BCEWithLogitsLoss(pos_weight=torch.tensor(20.).to(device), reduce='sum')
 	i_ini = 0
+	val_loss= np.array([])
 	for e in range(cfg["epochs"]):
 		start = time.time()
-		i_ini, loss = train(model, train_loader, criterion, optimizer, scheduler, i_ini,  using_wandb=True, tf=True, epoch=e)
-		validate(model, val_loader, criterion, using_wandb=True, tf=True, epoch=e)
+		i_ini, loss = recurrent_train(model, train_loader, criterion, optimizer, scheduler, i_ini,  using_wandb=cfg["wandb"], tf=True, epoch=e)
+		cur_val_loss = validate(model, val_loader, criterion, using_wandb=cfg["wandb"], tf=True, epoch=e)
+		val_loss = np.append(val_loss, cur_val_loss)
+
 		stop = time.time()
 		if(cfg["wandb"]):
 			wandb.log({"epoch_time":(stop-start)/60.0})
-		if(e%10 == 0):
-			save_model(model, optimizer, scheduler, loss,  cfg, e)
+		rank = (val_loss < cur_val_loss).sum()
+		# print(cur_val_loss, val_loss, rank)
+		save_model(model, optimizer, scheduler, loss,  cfg, e, rank = rank + 1)
 
-def save_model(model, optimizer, scheduler, loss,  cfg, epoch):
-	if(scheduler is not None):
+def save_model(model, optimizer, scheduler, loss,  cfg, epoch, rank=10):
+	torch.save({'epoch': epoch, 
+			'model_state_dict': model.state_dict(),
+			'optimizer_state_dict':optimizer.state_dict(),
+			'loss':loss,
+			'cfg':cfg
+			}, cfg["runspath"]+"/"+"ckpt_latest")
+	if(rank < 6.0):
 		torch.save({'epoch': epoch, 
 				'model_state_dict': model.state_dict(),
 				'optimizer_state_dict':optimizer.state_dict(),
-				'scheduler_state_dict':scheduler.state_dict(),
 				'loss':loss,
 				'cfg':cfg
-				}, cfg["runspath"]+"/"+"ckpt_"+str(epoch))
-	else:
-		torch.save({'epoch': epoch, 
-				'model_state_dict': model.state_dict(),
-				'optimizer_state_dict':optimizer.state_dict(),
-				'loss':loss,
-				'cfg':cfg
-				}, cfg["runspath"]+"/"+"ckpt_"+str(epoch))
+				}, cfg["runspath"]+"/"+"ckpt_"+str(rank))
 
 if __name__ == '__main__':
 	torch.manual_seed(1337)
@@ -177,12 +180,12 @@ if __name__ == '__main__':
 		run = wandb.init(project="CORL2022", entity="stirumal", config=args)
 		args["runspath"] = args["runspath"]+"/"+run.name
 		os.makedirs(args["runspath"])
-
-	train_loader, val_loader = get_dataloaders(args)
-	model = unet(in_channels= 2, n_classes=1).to(device)
-	optimizer = optim.Adam(model.parameters(), lr = args["lr"])
-	scheduler = None
-	criterion = torch.nn.BCEWithLogitsLoss(pos_weight=torch.tensor(20.).to(device), reduce='sum')
-	recurrent_train(model, train_loader, criterion, optimizer, scheduler, 0,  using_wandb=False, tf=False, epoch=0)
-	loss = validate(model, val_loader, criterion,  using_wandb=False, epoch=0)
-	print("loss: ", loss)
+	training(args)
+	# train_loader, val_loader = get_dataloaders(args)
+	# model = unet(in_channels= 2, n_classes=1).to(device)
+	# optimizer = optim.Adam(model.parameters(), lr = args["lr"])
+	# scheduler = None
+	# criterion = torch.nn.BCEWithLogitsLoss(pos_weight=torch.tensor(20.).to(device), reduce='sum')
+	# recurrent_train(model, train_loader, criterion, optimizer, scheduler, 0,  using_wandb=False, tf=False, epoch=0)
+	# loss = validate(model, val_loader, criterion,  using_wandb=False, epoch=0)
+	# print("loss: ", loss)
