@@ -10,8 +10,8 @@ import numpy as np
 import matplotlib.pyplot as plt
 from tqdm import tqdm
 from datetime import datetime
-from recurrent_unet import recurrent_unet
-from data_loader import ClothDataset
+from unet import unet
+from data_loader import RecClothDataset as ClothDataset
 import torch 
 import torch.nn as nn
 import torch.optim as optim
@@ -50,24 +50,41 @@ def train_mixed_prec(model, train_loader, criterion, optimizer, scheduler, scale
 		i_ini += 1
 	return i_ini, float(total_loss / (i + 1))
 
-def train(model, train_loader, criterion, optimizer, scheduler, i_ini,  using_wandb=False, tf=True, epoch=0):
+def recurrent_train(model, train_loader, criterion, optimizer, scheduler, i_ini,  using_wandb=False, tf=True, epoch=0):
 	model.train()
 	total_loss = 0
 	for i, samples in enumerate(train_loader):  
 		x = samples['X'].to(device)
 		y = samples['Y'].to(device)
-		outp = model.forward(x, outp=y, mode="train", teacher_forcing=tf)
-		loss = criterion(outp, y)	
+		fin_outp = torch.zeros(x.shape).to(device)
+		for i in range(y.shape[1]+1):
+			if tf:
+				if(i == 0):
+					cur_inp = torch.cat([x, fin_outp] , dim = 1).to(device)
+				else:
+					cur_inp = torch.cat([x,y[:,i-1,:,:].unsqueeze(1)], dim=1).to(device)
+			else:
+				if(i == 0):
+					cur_inp = torch.cat([x, fin_outp] , dim = 1).to(device)
+				else:
+					cur_inp = torch.cat([x,outp], dim=1).to(device)
+			outp = model(cur_inp)
+			fin_outp = torch.cat([fin_outp, outp] , dim = 1).to(device)
+		fin_outp = fin_outp[:,1:,:,:]
+		target =  torch.cat([y, torch.ones(x.shape).to(device)] , dim = 1).to(device)
+		del x,y
+		loss = criterion(fin_outp, target)	
 		total_loss += float(loss)
 		optimizer.zero_grad()
 		loss.backward()
 		optimizer.step()
 		if(using_wandb):
-			wandb.log({"loss":float(total_loss / (i + 1)), "step":int(i_ini), 'lr': float(optimizer.param_groups[0]['lr'])})
+			wandb.log({"loss":float(total_loss / (i + 1)), "step":int(i_ini), 'lr': float(optimizer.param_groups[0]['lr']), 'epoch':epoch})
 		if(scheduler is not None):
 			scheduler.step()
 		i_ini += 1
 		torch.cuda.empty_cache()
+		break
 	return i_ini, float(total_loss / (i + 1))
 
 def validate(model, val_loader, criterion,  using_wandb=False, tf=True, epoch=0):
@@ -131,29 +148,30 @@ if __name__ == '__main__':
 	np.random.seed(1337)
 	random.seed(1337)
 	parser = argparse.ArgumentParser(description='Description of your program')
-	parser.add_argument('-lr','--lr', type=float, help='learning rate', default = 1e-3) # required=True ,
-	parser.add_argument('-wd','--w_decay', type=float, help='weight decay (regularization)', default=0) #required=True ,
-	parser.add_argument('-m','--momentum', type=float, help='momentum (Adam)',  default=0)#required=True ,
-	parser.add_argument('-ss','--step_size', type=int, help='Description for bar argument',  default=30)#required=True ,
-	parser.add_argument('-g','--gamma', type=float, help='Description for foo argument', default=0.5)#required=True ,
-	parser.add_argument('-bs','--batch_size', type=int, help='Description for bar argument', default=8)#required=True ,
-	parser.add_argument('-e','--epochs', type=int, help='Description for bar argument', default=50)#required=True ,
-	parser.add_argument('-dp','--datapath', type=str, help='Description for bar argument', default="/home/sashank/deepl_project/data/dataset/test/")#required=True ,
-	parser.add_argument('-rp','--runspath', type=str, help='Description for bar argument', default="/home/sashank/deepl_project/cloth-segmentation/train_runs")#required=True ,
-	parser.add_argument('-t','--transform', type=bool, help='Description for bar argument', default=False)#required=True ,
-	parser.add_argument('-nc','--n_class', type=int, help='Description for bar argument', default=2)#required=True ,
-	parser.add_argument('-nf','--n_feature', type=int, help='Description for bar argument', default=2)#required=True ,
-	parser.add_argument('-ds','--datasize', type=str, help='Description for bar argument', default="")#required=True ,
-	parser.add_argument('-wandb','--wandb', type=int, help='use wandb or not', default=1)#required=True ,
+	parser.add_argument('-lr','--lr', type=float, help='learning rate', default = 1e-3) 
+	parser.add_argument('-wd','--w_decay', type=float, help='weight decay (regularization)', default=0) 
+	parser.add_argument('-m','--momentum', type=float, help='momentum (Adam)',  default=0)
+	parser.add_argument('-bs','--batch_size', type=int, help='Description for bar argument', default=8)
+	parser.add_argument('-e','--epochs', type=int, help='Number of epochs to train for', default=50)
+	parser.add_argument('-dp','--datapath', type=str, help='Where is the dataset stored', default="/home/sashank/deepl_project/data/dataset/test/")
+	parser.add_argument('-rp','--runspath', type=str, help='Where to store runs data', default="/home/sashank/deepl_project/cloth-segmentation/train_runs")
+	parser.add_argument('-nc','--n_class', type=int, help='Number of masks to predict', default=2)
+	parser.add_argument('-nf','--n_feature', type=int, help='Number of input masks to predict', default=2)
+	parser.add_argument('-wandb','--wandb', type=int, help='use wandb or not', default=1)
 
 	args = vars(parser.parse_args())
 
 	# # with open('configs/segmentation.json', 'r') as f:
 	# #     cfgs = json.loads(f.read())
 	# # print(json.dumps(cfgs, sort_keys=True, indent=1))
-	run = wandb.init(project="CORL2022", entity="stirumal", config=args)
-	args["runspath"] = args["runspath"]+"/"+run.name
-	# oldmask = os.umask(000)
-	os.makedirs(args["runspath"])
+	if args['wandb']:
+		run = wandb.init(project="CORL2022", entity="stirumal", config=args)
+		args["runspath"] = args["runspath"]+"/"+run.name
+		os.makedirs(args["runspath"])
 
-	training(args)
+	train_loader, val_loader = get_dataloaders(args)
+	model = unet(in_channels= 2, n_classes=1).to(device)
+	optimizer = optim.Adam(model.parameters(), lr = args["lr"])
+	scheduler = None
+	criterion = torch.nn.BCEWithLogitsLoss(pos_weight=torch.tensor(20.).to(device), reduce='sum')
+	recurrent_train(model, train_loader, criterion, optimizer, scheduler, 0,  using_wandb=False, tf=False, epoch=0)
