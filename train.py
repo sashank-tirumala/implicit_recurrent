@@ -67,7 +67,7 @@ def recurrent_train(model, train_loader, criterion, optimizer, scheduler, i_ini,
 				if(i == 0):
 					cur_inp = torch.cat([x, fin_outp] , dim = 1).to(device)
 				else:
-					cur_inp = torch.cat([x,outp], dim=1).to(device)
+					cur_inp = torch.cat([x,torch.sigmoid(outp)], dim=1).to(device)
 			outp = model(cur_inp)
 			fin_outp = torch.cat([fin_outp, outp] , dim = 1).to(device)
 		fin_outp = fin_outp[:,1:,:,:]
@@ -94,11 +94,21 @@ def validate(model, val_loader, criterion,  using_wandb=False, tf=True, epoch=0)
 		with torch.no_grad():
 			x = samples['X'].to(device)
 			y = samples['Y'].to(device)
-			outp = model.forward(x, outp=y, mode="train", teacher_forcing=tf)
-			loss = criterion(outp, y)
+			fin_outp = torch.zeros(x.shape).to(device)
+			for i in range(y.shape[1]+1):
+				if(i == 0):
+					cur_inp = torch.cat([x, fin_outp] , dim = 1).to(device)
+				else:
+					cur_inp = torch.cat([x,torch.sigmoid(outp)], dim=1).to(device)
+				outp = model(cur_inp)
+				fin_outp = torch.cat([fin_outp, outp] , dim = 1).to(device)
+			fin_outp = fin_outp[:,1:,:,:]
+			target =  torch.cat([y, torch.ones(x.shape).to(device)] , dim = 1).to(device)
+			del x,y
+			loss = criterion(fin_outp, target)
 			val_loss += float(loss)
 			if(using_wandb):
-				wandb.log({"val_loss":float(val_loss / (i + 1))})
+				wandb.log({"val_loss":float(val_loss / (i + 1)), "epoch":epoch})
 	return float(val_loss / (i + 1))
 
 def get_dataloaders(cfg):
@@ -175,3 +185,5 @@ if __name__ == '__main__':
 	scheduler = None
 	criterion = torch.nn.BCEWithLogitsLoss(pos_weight=torch.tensor(20.).to(device), reduce='sum')
 	recurrent_train(model, train_loader, criterion, optimizer, scheduler, 0,  using_wandb=False, tf=False, epoch=0)
+	loss = validate(model, val_loader, criterion,  using_wandb=False, epoch=0)
+	print("loss: ", loss)
