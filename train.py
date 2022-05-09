@@ -27,28 +27,27 @@ import argparse
 import torchvision.transforms as T
 device = 'cuda' if torch.cuda.is_available() else 'cpu'
 
-def train_mixed_prec(model, train_loader, criterion, optimizer, scheduler, scaler, i_ini,  using_wandb=False, tf=True, epoch=0):
-	model.train()
-	total_loss = 0
-	for i, samples in enumerate(train_loader):
-		with torch.cuda.amp.autocast():  
-			x = samples['X'].to(device)
-			y = samples['Y'].to(device)
-			outp = model.forward(x, outp=y, mode="train", teacher_forcing=tf)
-			loss = criterion(outp, y)
+# def train_mixed_prec(model, train_loader, criterion, optimizer, scheduler, scaler, i_ini,  using_wandb=False, tf=True, epoch=0):
+# 	model.train()
+# 	total_loss = 0
+# 	for i, samples in enumerate(train_loader):
+# 		with torch.cuda.amp.autocast():  
+# 			x = samples['X'].to(device)
+# 			y = samples['Y'].to(device)
+# 			outp = model.forward(x, outp=y, mode="train", teacher_forcing=tf)
+# 			loss = criterion(outp, y)
 			
-		total_loss += float(loss)
-		print(total_loss)
-		optimizer.zero_grad()
-		scaler.scale(loss).backward()
-		scaler.step(optimizer)
-		scaler.update()
-		if(using_wandb):
-			wandb.log({"loss":float(total_loss / (i + 1)), "step":int(i_ini), 'lr': float(optimizer.param_groups[0]['lr'])})
-		if(scheduler is not None):
-			scheduler.step()
-		i_ini += 1
-	return i_ini, float(total_loss / (i + 1))
+# 		total_loss += float(loss)
+# 		optimizer.zero_grad()
+# 		scaler.scale(loss).backward()
+# 		scaler.step(optimizer)
+# 		scaler.update()
+# 		if(using_wandb):
+# 			wandb.log({"loss":float(total_loss / (i + 1)), "step":int(i_ini), 'lr': float(optimizer.param_groups[0]['lr'])})
+# 		if(scheduler is not None):
+# 			scheduler.step()
+# 		i_ini += 1
+# 	return i_ini, float(total_loss / (i + 1))
 
 def recurrent_train(model, train_loader, criterion, optimizer, scheduler, i_ini,  using_wandb=False, tf=True, epoch=0):
 	model.train()
