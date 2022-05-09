@@ -9,7 +9,6 @@ import random
 import os
 import cv2
 import random
-from utils import normalize
 
 import torch
 from torch.utils.data import Dataset, DataLoader
@@ -17,10 +16,17 @@ from torchvision import utils
 import torchvision.transforms.functional as tf
 import torchvision.transforms as T
 import pdb
+from alive_progress import alive_bar
+IMG_MAX = 32722
+IMG_MIN = -31822
+def normalize(img_depth):
+    img_depth = img_depth.float()
+    img_depth = (img_depth - IMG_MIN) / (IMG_MAX - IMG_MIN)
+    return img_depth
 
 class RecClothDataset(Dataset):
 
-    def __init__(self, root_dir, phase,num_masks, use_transform=True, datasize=None):
+    def __init__(self, root_dir,num_masks, use_transform=True, datasize=None):
         self.root_dir = root_dir
         self.use_transform = use_transform
         self.num_masks = num_masks
@@ -50,13 +56,9 @@ class RecClothDataset(Dataset):
 
 
         transform = T.Compose([T.ToTensor()])
-            # corners_label = Image.open(os.path.join(self.root_dir, imidx+'_labels_red.png'))
-            # edges_label = Image.open(os.path.join(self.root_dir, imidx+'_labels_yellow.png'))
-            # inner_edges_label = Image.open(os.path.join(self.root_dir, imidx+'_labels_green.png'))
         labels = []
         for m in reversed(range(self.num_masks)):
             m_npy = np.load(os.path.join(self.masks_roots[m],imidx+".npy"))
-            #pdb.set_trace()
             img_hsv = Image.fromarray(m_npy)
             labels.append(img_hsv)
         
@@ -64,43 +66,52 @@ class RecClothDataset(Dataset):
             if random.random() > 0.5:
                 img_rgb = tf.hflip(img_rgb)
                 img_depth = tf.hflip(img_depth)
-                # corners_label = tf.hflip(corners_label)
-                # edges_label = tf.hflip(edges_label)
-                # inner_edges_label = tf.hflip(inner_edges_label)
                 labels = [tf.hflip(l) for l in labels]
             if random.random() > 0.5:
                 img_rgb = tf.vflip(img_rgb)
                 img_depth = tf.vflip(img_depth)
-                # corners_label = tf.vflip(corners_label)
-                # edges_label = tf.vflip(edges_label)
-                # inner_edges_label = tf.vflip(inner_edges_label)
                 labels = [tf.vflip(l) for l in labels]
             if random.random() > 0.9:
                 angle = T.RandomRotation.get_params([-30, 30])
                 img_rgb = tf.rotate(img_rgb, angle, resample=Image.NEAREST)
                 img_depth = tf.rotate(img_depth, angle, resample=Image.NEAREST)
-                # corners_label = tf.rotate(corners_label, angle, resample=Image.NEAREST)
-                # edges_label = tf.rotate(edges_label, angle, resample=Image.NEAREST)
-                # inner_edges_label = tf.rotate(inner_edges_label, angle, resample=Image.NEAREST)
                 labels = [tf.rotate(l,angle,resample=Image.NEAREST) for l in labels]
-            img_rgb = transform(img_rgb)
-            img_depth = transform(img_depth)
+        img_rgb = transform(img_rgb)
+        img_depth = transform(img_depth)
 
-            labels = [transform(l) for l in labels]
-            
-            label = torch.cat(labels, 0)
-            img_depth = normalize(img_depth)
+        labels = [transform(l) for l in labels]
+        
+        label = torch.cat(labels, 0)
+        img_depth = normalize(img_depth)
 
-            sample = {'rgb': img_rgb, 'X': img_depth, 'Y': label}
+        sample = {'rgb': img_rgb, 'X': img_depth, 'Y': label}
 
         return sample
+    
+    def get_max_min(self):
+        self.use_transform = False
+        maxi = -100000
+        mini = 100000
+        with alive_bar(len(self)) as bar:
+            for i in range(len(self)):
+                data = self[i]
+                inp = data['X'][0,:,:].numpy()
+                cur_max = inp.max()
+                cur_min = inp.min()
+                print(cur_max, cur_min)
+                if(cur_max > maxi):
+                    maxi = cur_max
+                if(cur_min < mini):
+                    mini = cur_min
+                bar()
+        print(maxi, mini)
+
 
 if __name__ == "__main__":
-    train_data = TowelDataset_1(root_dir="/home/sashank/deepl_project/data/dataset/test/", phase='val',num_masks=2, use_transform=True)
-
-    # show a batch
-    batch_size = 1
-    for i in range(batch_size):
+    train_data = RecClothDataset(root_dir="/media/YertleDrive4/layer_grasp/dataset/2cloth_rec/val", num_masks=2, use_transform=True)
+    num= 1
+    # train_data.get_max_min()
+    for i in range(num):
         sample = train_data[i]
         print(i, sample['X'].size())
         print(sample['X'].max(), sample['X'].min(), sample['X'].type())
@@ -108,21 +119,8 @@ if __name__ == "__main__":
         print(sample['rgb'].max(), sample['rgb'].min(), sample['rgb'].type())
 
         a = sample['Y'].numpy()
-        for i in range(a.shape[0]):
-            for j in range(a.shape[1]):
-                for k in range(a.shape[2]):
-                    if a[i,j,k] != 0 and a[i,j,k] != 1:
-                        print(a[i,j,k])
+        print(sample['X'].numpy().shape)
+        print(sample['rgb'].numpy().shape)
+        print(sample['Y'].numpy().shape)
 
-    dataloader = DataLoader(train_data, batch_size=batch_size, shuffle=False, num_workers=1)
 
-    for i, batch in enumerate(dataloader):
-        print(i, batch['X'].size())
-    
-        # observe 4th batch
-        if i == 0:
-            plt.figure()
-            show_batch(batch)
-            plt.axis('off')
-            plt.ioff()
-            plt.show()
