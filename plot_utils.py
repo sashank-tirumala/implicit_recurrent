@@ -53,7 +53,7 @@ def plot_sample(sample, savefig=None):
 
 if(__name__ == "__main__"):
     path = "/media/YertleDrive4/layer_grasp/dataset/2cloth_rec/test"
-    img_num = 125
+    img_num = 166
     from data_loader import RecClothDataset
     train_data = RecClothDataset(root_dir="/media/YertleDrive4/layer_grasp/dataset/2cloth_rec/train", num_masks=2, use_transform=True)
     sample = train_data[img_num]
