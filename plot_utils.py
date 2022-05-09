@@ -1,0 +1,33 @@
+import matplotlib.pyplot as plt
+import numpy as np
+import os
+def plot_idx(idx, root, savefig=None):
+    rgb_img = np.load(root+"/rgb/"+str(img_num)+".npy")/255.0
+    depth_img = np.load(root+"/depth/"+str(img_num)+".npy")/255.0
+    imgs = {}
+    imgs["orig"] = rgb_img[... ,::-1] #Converts BGR to RGB
+    imgs["depth"] = depth_img
+    mask_dir = root+"/masks"
+    maskdirs = os.listdir(mask_dir)
+    for i in range(len(maskdirs)):
+        img =  np.load(root+"/masks/"+maskdirs[i]+"/"+str(img_num)+".npy")
+        imgs[str(maskdirs[i])] = img
+    rows = 1
+    cols = len(imgs.keys())
+    fig = plt.figure()
+    ax = []
+    for i in range(cols*rows):
+        name = list(imgs.keys())[i]
+        ax.append( fig.add_subplot(rows, cols, i+1) )
+        ax[-1].set_title(name)  # set title
+        plt.imshow(imgs[name])
+    if(savefig == None):
+        plt.show()
+    else:
+        plt.savefig(savefig, bbox_inches='tight')
+    return None
+
+if(__name__ == "__main__"):
+    path = "/media/YertleDrive4/layer_grasp/dataset/2cloth_rec/train"
+    img_num = 125
+    plot_idx(img_num, path)
