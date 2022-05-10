@@ -99,6 +99,7 @@ def recurrent_train(model, train_loader, criterion, optimizer, scheduler, i_ini,
 def validate(model, val_loader, criterion,  using_wandb=False, tf=True, epoch=0):
 	model.eval()
 	val_loss = 0
+	ious = []
 	for i, samples in enumerate(val_loader):  
 		with torch.no_grad():
 			x = samples['X'].to(device)
@@ -115,10 +116,15 @@ def validate(model, val_loader, criterion,  using_wandb=False, tf=True, epoch=0)
 			target =  torch.cat([y, torch.ones(x.shape).to(device)] , dim = 1).to(device)
 			del x,y
 			loss = criterion(fin_outp, target)
+			batch_iou = metrics(fin_outp, target)
 			val_loss += float(loss)
+			ious = ious + batch_iou
 			if(using_wandb):
-				wandb.log({"val_loss":float(val_loss / (i + 1)), "epoch":epoch})
+				wandb.log({"val_loss":float(val_loss / (i + 1))})
 		break
+	ious = np.nanmean(ious)
+	if(using_wandb):
+		wandb.log({"val_iou":ious,  "epoch":epoch})
 	return float(val_loss / (i + 1))
 
 def metrics(outputs, labels):
@@ -208,6 +214,6 @@ if __name__ == '__main__':
 	optimizer = optim.Adam(model.parameters(), lr = args["lr"])
 	scheduler = None
 	criterion = torch.nn.BCEWithLogitsLoss(pos_weight=torch.tensor(20.).to(device), reduce='sum')
-	recurrent_train(model, train_loader, criterion, optimizer, scheduler, 0,  using_wandb=False, tf=False, epoch=0)
-	# loss = validate(model, val_loader, criterion,  using_wandb=False, epoch=0)
+	# recurrent_train(model, train_loader, criterion, optimizer, scheduler, 0,  using_wandb=False, tf=False, epoch=0)
+	loss = validate(model, val_loader, criterion,  using_wandb=False, epoch=0)
 	print("loss: ", loss)
