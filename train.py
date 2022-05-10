@@ -56,6 +56,7 @@ def recurrent_train(model, train_loader, criterion, optimizer, scheduler, i_ini,
 	model.train()
 	total_loss = 0
 	ious = []
+	count = 0
 	for i, samples in enumerate(train_loader):  
 		x = samples['X'].to(device)
 		y = samples['Y'].to(device)
@@ -88,11 +89,13 @@ def recurrent_train(model, train_loader, criterion, optimizer, scheduler, i_ini,
 		torch.cuda.empty_cache()
 		batch_iou = metrics(fin_outp, target)
 		ious = ious + batch_iou
-		if(epoch%10 == 0 and i == 2):
+		if(epoch%10 == 0 and count == 0):
 			rgb = samples['rgb'].permute(0,2,3,1)[0,:,:,:].detach().cpu().numpy()
 			rgb = rgb[... , ::-1]
 			make_plot(torch.sigmoid(fin_outp.detach().cpu()), target.detach().cpu(), rgb, x.detach().cpu(), savefig="train_viz")
 			wandb.log({"train_viz": wandb.Image("train_viz.png")})
+			count +=1
+		break
 	ious = np.nanmean(ious)
 	if(using_wandb):
 		wandb.log({"training_iou":ious})
@@ -102,6 +105,7 @@ def validate(model, val_loader, criterion,  using_wandb=False, epoch=0):
 	model.eval()
 	val_loss = 0
 	ious = []
+	count = 0
 	for i, samples in enumerate(val_loader):  
 		with torch.no_grad():
 			x = samples['X'].to(device)
@@ -122,11 +126,12 @@ def validate(model, val_loader, criterion,  using_wandb=False, epoch=0):
 			ious = ious + batch_iou
 			if(using_wandb):
 				wandb.log({"val_loss":float(val_loss / (i + 1))})
-		if(epoch%10 == 0 and i == 2):
+		if(epoch%10 == 0 and count == 0):
 			rgb = samples['rgb'].permute(0,2,3,1)[0,:,:,:].detach().cpu().numpy()
 			rgb = rgb[... , ::-1]
 			make_plot(torch.sigmoid(fin_outp.detach().cpu()), target.detach().cpu(), rgb, x.detach().cpu(), savefig="val_viz")
 			wandb.log({"val_viz": wandb.Image("val_viz.png")})
+			count +=1
 	ious = np.nanmean(ious)
 	if(using_wandb):
 		wandb.log({"val_iou":ious,  "epoch":epoch})
@@ -151,9 +156,9 @@ def get_dataloaders(cfg):
 	val_loader = DataLoader(train_data, batch_size=cfg["batch_size"], shuffle=True)
 	return train_loader, val_loader
 
-def get_teacher_forcing(e):
-	num = random.random()
-	if(num < 0.5):
+def get_teacher_forcing(e, cfg):
+	num = np.random.random()
+	if(num < cfg["teacher_forcing"]):
 		return True
 	else:
 		return False
@@ -167,7 +172,7 @@ def training(cfg):
 	val_loss= np.array([])
 	for e in range(cfg["epochs"]):
 		start = time.time()
-		i_ini, loss = recurrent_train(model, train_loader, criterion, optimizer, scheduler, i_ini,  using_wandb=cfg["wandb"], tf=get_teacher_forcing(e), epoch=e)
+		i_ini, loss = recurrent_train(model, train_loader, criterion, optimizer, scheduler, i_ini,  using_wandb=cfg["wandb"], tf=get_teacher_forcing(e, cfg), epoch=e)
 		cur_val_loss = validate(model, val_loader, criterion, using_wandb=cfg["wandb"], epoch=e)
 		val_loss = np.append(val_loss, cur_val_loss)
 
@@ -209,23 +214,13 @@ if __name__ == '__main__':
 	parser.add_argument('-nc','--n_class', type=int, help='Number of masks to predict', default=2)
 	parser.add_argument('-nf','--n_feature', type=int, help='Number of input masks to predict', default=2)
 	parser.add_argument('-wandb','--wandb', type=int, help='use wandb or not', default=1)
+	parser.add_argument('-tf','--teacher_forcing', type=float, help='teacher_forcing', default=0.5)
 
 	args = vars(parser.parse_args())
 
-	# # with open('configs/segmentation.json', 'r') as f:
-	# #     cfgs = json.loads(f.read())
-	# # print(json.dumps(cfgs, sort_keys=True, indent=1))
 	if args['wandb']:
 		run = wandb.init(project="CORL2022", entity="stirumal", config=args)
 		args["runspath"] = args["runspath"]+"/"+run.name
 		os.makedirs(args["runspath"])
 	training(args)
-	train_loader, val_loader = get_dataloaders(args)
-	model = unet(in_channels= 2, n_classes=1).to(device)
-	optimizer = optim.Adam(model.parameters(), lr = args["lr"])
-	scheduler = None
-	criterion = torch.nn.BCEWithLogitsLoss(pos_weight=torch.tensor(20.).to(device), reduce='sum')
-	# recurrent_train(model, train_loader, criterion, optimizer, scheduler, 0,  using_wandb=False, tf=False, epoch=0)
-	# loss = validate(model, val_loader, criterion,  using_wandb=False, epoch=0)
-	training(args)
-	print("loss: ", loss)
+	
