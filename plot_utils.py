@@ -51,6 +51,43 @@ def plot_sample(sample, savefig=None):
         plt.savefig(savefig, bbox_inches='tight')
     return None
 
+def make_plot(outp, y, rgb, x, savefig=None):
+	cols = 5
+	rows = 3
+	fig = plt.figure()
+	fig.tight_layout()
+	ax = []
+	for i in range(cols*rows):
+		ax.append(fig.add_subplot(rows, cols, i+1) )
+		if(i%5 == 0):
+			if(i<5):
+				ax[-1].set_title("RGB Image")
+			plt.imshow(rgb[:,:,:])
+		if(i%5 == 1):
+			if(i<5):
+				ax[-1].set_title("Depth Image")
+			plt.imshow(x[0,0,:,:])
+		if(i%5 == 2):
+			if(i<5):
+				ax[-1].set_title("Input Mask")
+				plt.imshow(np.zeros(rgb.shape[:-1]))
+			else:
+				plt.imshow(outp[0,int(i/5) -1,:,:])
+		if(i%5 == 3):
+			if(i<5):
+				ax[-1].set_title("Output Mask")
+			plt.imshow(outp[0,int(i/5),:,:])
+		if(i%5 == 4):
+			if(i<5):
+				ax[-1].set_title("Desired Mask")
+			plt.imshow(y[0,int(i/5),:,:])
+	if(savefig == None):
+		plt.savefig("inp_outp_plot")
+	else:
+		plt.savefig(savefig)
+
+def plot_network():
+    pass
 if(__name__ == "__main__"):
     path = "/media/YertleDrive4/layer_grasp/dataset/2cloth_rec/test"
     img_num = 166

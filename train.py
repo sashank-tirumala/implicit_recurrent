@@ -26,6 +26,7 @@ import wandb
 import argparse
 import torchvision.transforms as T
 from utils import weights_init, compute_map, compute_iou, compute_auc, preprocessHeatMap 
+from plot_utils import make_plot
 
 device = 'cuda' if torch.cuda.is_available() else 'cpu'
 
@@ -74,7 +75,6 @@ def recurrent_train(model, train_loader, criterion, optimizer, scheduler, i_ini,
 			fin_outp = torch.cat([fin_outp, outp] , dim = 1).to(device)
 		fin_outp = fin_outp[:,1:,:,:]
 		target =  torch.cat([y, torch.ones(x.shape).to(device)] , dim = 1).to(device)
-		del x,y
 		loss = criterion(fin_outp, target)	
 		total_loss += float(loss)
 		optimizer.zero_grad()
@@ -90,6 +90,11 @@ def recurrent_train(model, train_loader, criterion, optimizer, scheduler, i_ini,
 		ious = ious + batch_iou
 		# print(fin_outp.shape, target.shape)
 		# print("batch_iou: ", batch_iou)
+		if(epoch%10 == 0 and i == 2):
+			rgb = samples['rgb'].permute(0,2,3,1)[0,:,:,:].detach().cpu().numpy()
+			rgb = rgb[... , ::-1]
+			make_plot(fin_outp.detach().cpu(), target.detach().cpu(), rgb, x.detach().cpu(), savefig="train_viz")
+			wandb.log({"train_viz": wandb.Image("train_viz.png")})
 		break
 	ious = np.nanmean(ious)
 	if(using_wandb):
@@ -114,13 +119,17 @@ def validate(model, val_loader, criterion,  using_wandb=False, tf=True, epoch=0)
 				fin_outp = torch.cat([fin_outp, outp] , dim = 1).to(device)
 			fin_outp = fin_outp[:,1:,:,:]
 			target =  torch.cat([y, torch.ones(x.shape).to(device)] , dim = 1).to(device)
-			del x,y
 			loss = criterion(fin_outp, target)
 			batch_iou = metrics(fin_outp, target)
 			val_loss += float(loss)
 			ious = ious + batch_iou
 			if(using_wandb):
 				wandb.log({"val_loss":float(val_loss / (i + 1))})
+		if(epoch%10 == 0 and i == 2):
+			rgb = samples['rgb'].permute(0,2,3,1)[0,:,:,:].detach().cpu().numpy()
+			rgb = rgb[... , ::-1]
+			make_plot(fin_outp.detach().cpu(), target.detach().cpu(), rgb, x.detach().cpu(), savefig="val_viz")
+			wandb.log({"val_viz": wandb.Image("val_viz.png")})
 		break
 	ious = np.nanmean(ious)
 	if(using_wandb):
@@ -215,5 +224,6 @@ if __name__ == '__main__':
 	scheduler = None
 	criterion = torch.nn.BCEWithLogitsLoss(pos_weight=torch.tensor(20.).to(device), reduce='sum')
 	# recurrent_train(model, train_loader, criterion, optimizer, scheduler, 0,  using_wandb=False, tf=False, epoch=0)
-	loss = validate(model, val_loader, criterion,  using_wandb=False, epoch=0)
+	# loss = validate(model, val_loader, criterion,  using_wandb=False, epoch=0)
+	training(args)
 	print("loss: ", loss)
