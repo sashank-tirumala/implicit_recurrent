@@ -88,20 +88,17 @@ def recurrent_train(model, train_loader, criterion, optimizer, scheduler, i_ini,
 		torch.cuda.empty_cache()
 		batch_iou = metrics(fin_outp, target)
 		ious = ious + batch_iou
-		# print(fin_outp.shape, target.shape)
-		# print("batch_iou: ", batch_iou)
 		if(epoch%10 == 0 and i == 2):
 			rgb = samples['rgb'].permute(0,2,3,1)[0,:,:,:].detach().cpu().numpy()
 			rgb = rgb[... , ::-1]
-			make_plot(fin_outp.detach().cpu(), target.detach().cpu(), rgb, x.detach().cpu(), savefig="train_viz")
+			make_plot(torch.sigmoid(fin_outp.detach().cpu()), target.detach().cpu(), rgb, x.detach().cpu(), savefig="train_viz")
 			wandb.log({"train_viz": wandb.Image("train_viz.png")})
-		break
 	ious = np.nanmean(ious)
 	if(using_wandb):
 		wandb.log({"training_iou":ious})
 	return i_ini, float(total_loss / (i + 1))
 
-def validate(model, val_loader, criterion,  using_wandb=False, tf=True, epoch=0):
+def validate(model, val_loader, criterion,  using_wandb=False, epoch=0):
 	model.eval()
 	val_loss = 0
 	ious = []
@@ -128,9 +125,8 @@ def validate(model, val_loader, criterion,  using_wandb=False, tf=True, epoch=0)
 		if(epoch%10 == 0 and i == 2):
 			rgb = samples['rgb'].permute(0,2,3,1)[0,:,:,:].detach().cpu().numpy()
 			rgb = rgb[... , ::-1]
-			make_plot(fin_outp.detach().cpu(), target.detach().cpu(), rgb, x.detach().cpu(), savefig="val_viz")
+			make_plot(torch.sigmoid(fin_outp.detach().cpu()), target.detach().cpu(), rgb, x.detach().cpu(), savefig="val_viz")
 			wandb.log({"val_viz": wandb.Image("val_viz.png")})
-		break
 	ious = np.nanmean(ious)
 	if(using_wandb):
 		wandb.log({"val_iou":ious,  "epoch":epoch})
@@ -155,6 +151,12 @@ def get_dataloaders(cfg):
 	val_loader = DataLoader(train_data, batch_size=cfg["batch_size"], shuffle=True)
 	return train_loader, val_loader
 
+def get_teacher_forcing(e):
+	num = random.random()
+	if(num < 0.5):
+		return True
+	else:
+		return False
 def training(cfg):
 	train_loader, val_loader = get_dataloaders(cfg)
 	model = unet(in_channels= 2, n_classes=1).to(device)
@@ -165,8 +167,8 @@ def training(cfg):
 	val_loss= np.array([])
 	for e in range(cfg["epochs"]):
 		start = time.time()
-		i_ini, loss = recurrent_train(model, train_loader, criterion, optimizer, scheduler, i_ini,  using_wandb=cfg["wandb"], tf=True, epoch=e)
-		cur_val_loss = validate(model, val_loader, criterion, using_wandb=cfg["wandb"], tf=True, epoch=e)
+		i_ini, loss = recurrent_train(model, train_loader, criterion, optimizer, scheduler, i_ini,  using_wandb=cfg["wandb"], tf=get_teacher_forcing(e), epoch=e)
+		cur_val_loss = validate(model, val_loader, criterion, using_wandb=cfg["wandb"], epoch=e)
 		val_loss = np.append(val_loss, cur_val_loss)
 
 		stop = time.time()
