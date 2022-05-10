@@ -15,8 +15,8 @@ from torch.utils.data import Dataset, DataLoader
 from torchvision import utils
 import torchvision.transforms.functional as tf
 import torchvision.transforms as T
-import pdb
-from alive_progress import alive_bar
+# import pdb
+# from alive_progress import alive_bar
 IMG_MAX = 32722
 IMG_MIN = -31822
 def normalize(img_depth):
@@ -92,18 +92,16 @@ class RecClothDataset(Dataset):
         self.use_transform = False
         maxi = -100000
         mini = 100000
-        with alive_bar(len(self)) as bar:
-            for i in range(len(self)):
-                data = self[i]
-                inp = data['X'][0,:,:].numpy()
-                cur_max = inp.max()
-                cur_min = inp.min()
-                print(cur_max, cur_min)
-                if(cur_max > maxi):
-                    maxi = cur_max
-                if(cur_min < mini):
-                    mini = cur_min
-                bar()
+        for i in range(len(self)):
+            data = self[i]
+            inp = data['X'][0,:,:].numpy()
+            cur_max = inp.max()
+            cur_min = inp.min()
+            print(cur_max, cur_min)
+            if(cur_max > maxi):
+                maxi = cur_max
+            if(cur_min < mini):
+                mini = cur_min
         print(maxi, mini)
 
 
