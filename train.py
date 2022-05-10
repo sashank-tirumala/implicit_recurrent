@@ -25,6 +25,8 @@ from PIL import Image
 import wandb
 import argparse
 import torchvision.transforms as T
+from utils import weights_init, compute_map, compute_iou, compute_auc, preprocessHeatMap 
+
 device = 'cuda' if torch.cuda.is_available() else 'cpu'
 
 # def train_mixed_prec(model, train_loader, criterion, optimizer, scheduler, scaler, i_ini,  using_wandb=False, tf=True, epoch=0):
@@ -52,6 +54,7 @@ device = 'cuda' if torch.cuda.is_available() else 'cpu'
 def recurrent_train(model, train_loader, criterion, optimizer, scheduler, i_ini,  using_wandb=False, tf=True, epoch=0):
 	model.train()
 	total_loss = 0
+	ious = []
 	for i, samples in enumerate(train_loader):  
 		x = samples['X'].to(device)
 		y = samples['Y'].to(device)
@@ -83,7 +86,14 @@ def recurrent_train(model, train_loader, criterion, optimizer, scheduler, i_ini,
 			scheduler.step()
 		i_ini += 1
 		torch.cuda.empty_cache()
+		batch_iou = metrics(fin_outp, target)
+		ious = ious + batch_iou
+		# print(fin_outp.shape, target.shape)
+		# print("batch_iou: ", batch_iou)
 		break
+	ious = np.nanmean(ious)
+	if(using_wandb):
+		wandb.log({"training_iou":ious})
 	return i_ini, float(total_loss / (i + 1))
 
 def validate(model, val_loader, criterion,  using_wandb=False, tf=True, epoch=0):
@@ -110,6 +120,18 @@ def validate(model, val_loader, criterion,  using_wandb=False, tf=True, epoch=0)
 				wandb.log({"val_loss":float(val_loss / (i + 1)), "epoch":epoch})
 		break
 	return float(val_loss / (i + 1))
+
+def metrics(outputs, labels):
+	output = torch.sigmoid(outputs[:,:,:,:])
+	output = output.data.cpu().numpy()
+	pred = output.transpose(0, 2, 3, 1)
+	gt = labels.cpu().numpy().transpose(0, 2, 3, 1)
+	ious = []
+	aucs = []
+	for g, p in zip(gt, pred):
+		ious.append(compute_iou(g, p, 3))
+		# aucs.append(compute_auc(g, p, 2))
+	return ious
 
 def get_dataloaders(cfg):
 	train_data = ClothDataset(root_dir = cfg["datapath"]+"/train", use_transform=False)
@@ -181,11 +203,11 @@ if __name__ == '__main__':
 		args["runspath"] = args["runspath"]+"/"+run.name
 		os.makedirs(args["runspath"])
 	training(args)
-	# train_loader, val_loader = get_dataloaders(args)
-	# model = unet(in_channels= 2, n_classes=1).to(device)
-	# optimizer = optim.Adam(model.parameters(), lr = args["lr"])
-	# scheduler = None
-	# criterion = torch.nn.BCEWithLogitsLoss(pos_weight=torch.tensor(20.).to(device), reduce='sum')
-	# recurrent_train(model, train_loader, criterion, optimizer, scheduler, 0,  using_wandb=False, tf=False, epoch=0)
+	train_loader, val_loader = get_dataloaders(args)
+	model = unet(in_channels= 2, n_classes=1).to(device)
+	optimizer = optim.Adam(model.parameters(), lr = args["lr"])
+	scheduler = None
+	criterion = torch.nn.BCEWithLogitsLoss(pos_weight=torch.tensor(20.).to(device), reduce='sum')
+	recurrent_train(model, train_loader, criterion, optimizer, scheduler, 0,  using_wandb=False, tf=False, epoch=0)
 	# loss = validate(model, val_loader, criterion,  using_wandb=False, epoch=0)
-	# print("loss: ", loss)
+	print("loss: ", loss)
