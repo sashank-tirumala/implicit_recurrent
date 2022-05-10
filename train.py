@@ -149,10 +149,10 @@ def metrics(outputs, labels):
 	return ious
 
 def get_dataloaders(cfg):
-	train_data = ClothDataset(root_dir = cfg["datapath"]+"/train", use_transform=False)
+	train_data = ClothDataset(root_dir = cfg["datapath"]+"/train", use_transform=True) #Was false, could be why it was not generalizing
 	val_data = ClothDataset(root_dir = cfg["datapath"] + "/val", use_transform=False)
 	train_loader = DataLoader(train_data, batch_size=cfg["batch_size"], shuffle=True)
-	val_loader = DataLoader(train_data, batch_size=cfg["batch_size"], shuffle=True)
+	val_loader = DataLoader(val_data, batch_size=cfg["batch_size"], shuffle=True)
 	return train_loader, val_loader
 
 def get_teacher_forcing(e, cfg):
