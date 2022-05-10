@@ -57,7 +57,7 @@ def recurrent_train(model, train_loader, criterion, optimizer, scheduler, i_ini,
 	total_loss = 0
 	ious = []
 	count = 0
-	for i, samples in enumerate(train_loader):  
+	for itercount, samples in enumerate(train_loader):  
 		x = samples['X'].to(device)
 		y = samples['Y'].to(device)
 		fin_outp = torch.zeros(x.shape).to(device)
@@ -82,7 +82,7 @@ def recurrent_train(model, train_loader, criterion, optimizer, scheduler, i_ini,
 		loss.backward()
 		optimizer.step()
 		if(using_wandb):
-			wandb.log({"loss":float(total_loss / (i + 1)), "step":int(i_ini), 'lr': float(optimizer.param_groups[0]['lr']), 'epoch':epoch})
+			wandb.log({"loss":float(total_loss / (itercount + 1)), "step":int(i_ini), 'lr': float(optimizer.param_groups[0]['lr']), 'epoch':epoch})
 		if(scheduler is not None):
 			scheduler.step()
 		i_ini += 1
@@ -95,18 +95,17 @@ def recurrent_train(model, train_loader, criterion, optimizer, scheduler, i_ini,
 			make_plot(torch.sigmoid(fin_outp.detach().cpu()), target.detach().cpu(), rgb, x.detach().cpu(), savefig="train_viz")
 			wandb.log({"train_viz": wandb.Image("train_viz.png")})
 			count +=1
-		break
 	ious = np.nanmean(ious)
 	if(using_wandb):
 		wandb.log({"training_iou":ious})
-	return i_ini, float(total_loss / (i + 1))
+	return i_ini, float(total_loss / (itercount + 1))
 
 def validate(model, val_loader, criterion,  using_wandb=False, epoch=0):
 	model.eval()
 	val_loss = 0
 	ious = []
 	count = 0
-	for i, samples in enumerate(val_loader):  
+	for itercount, samples in enumerate(val_loader):  
 		with torch.no_grad():
 			x = samples['X'].to(device)
 			y = samples['Y'].to(device)
@@ -125,7 +124,7 @@ def validate(model, val_loader, criterion,  using_wandb=False, epoch=0):
 			val_loss += float(loss)
 			ious = ious + batch_iou
 			if(using_wandb):
-				wandb.log({"val_loss":float(val_loss / (i + 1))})
+				wandb.log({"val_loss":float(val_loss / (itercount + 1))})
 		if(epoch%10 == 0 and count == 0):
 			rgb = samples['rgb'].permute(0,2,3,1)[0,:,:,:].detach().cpu().numpy()
 			rgb = rgb[... , ::-1]
@@ -135,7 +134,7 @@ def validate(model, val_loader, criterion,  using_wandb=False, epoch=0):
 	ious = np.nanmean(ious)
 	if(using_wandb):
 		wandb.log({"val_iou":ious,  "epoch":epoch})
-	return float(val_loss / (i + 1))
+	return float(val_loss / (itercount + 1))
 
 def metrics(outputs, labels):
 	output = torch.sigmoid(outputs[:,:,:,:])
