@@ -82,7 +82,7 @@ class RecClothDataset(Dataset):
         labels = [transform(l) for l in labels]
         
         label = torch.cat(labels, 0)
-        img_depth = normalize(img_depth)
+        # img_depth = normalize(img_depth)
 
         sample = {'rgb': img_rgb, 'X': img_depth, 'Y': label}
 
@@ -108,7 +108,8 @@ class RecClothDataset(Dataset):
 
 
 if __name__ == "__main__":
-    train_data = RecClothDataset(root_dir="/media/YertleDrive4/layer_grasp/dataset/2cloth_rec/val", num_masks=2, use_transform=True)
+    train_data = RecClothDataset(root_dir="/media/YertleDrive4/layer_grasp/dataset/2cloth_rec/val", use_transform=False)
+    train_data.get_max_min()
     num= 1
     # train_data.get_max_min()
     for i in range(num):

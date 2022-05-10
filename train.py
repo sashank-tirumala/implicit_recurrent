@@ -57,6 +57,7 @@ def recurrent_train(model, train_loader, criterion, optimizer, scheduler, i_ini,
 	total_loss = 0
 	ious = []
 	count = 0
+	torch.cuda.empty_cache()
 	for itercount, samples in enumerate(train_loader):  
 		x = samples['X'].to(device)
 		y = samples['Y'].to(device)
@@ -86,7 +87,6 @@ def recurrent_train(model, train_loader, criterion, optimizer, scheduler, i_ini,
 		if(scheduler is not None):
 			scheduler.step()
 		i_ini += 1
-		torch.cuda.empty_cache()
 		batch_iou = metrics(fin_outp, target)
 		ious = ious + batch_iou
 		if(epoch%10 == 0 and count == 0):
@@ -105,6 +105,7 @@ def validate(model, val_loader, criterion,  using_wandb=False, epoch=0):
 	val_loss = 0
 	ious = []
 	count = 0
+	torch.cuda.empty_cache()
 	for itercount, samples in enumerate(val_loader):  
 		with torch.no_grad():
 			x = samples['X'].to(device)
@@ -117,6 +118,7 @@ def validate(model, val_loader, criterion,  using_wandb=False, epoch=0):
 					cur_inp = torch.cat([x,torch.sigmoid(outp)], dim=1).to(device)
 				outp = model(cur_inp)
 				fin_outp = torch.cat([fin_outp, outp] , dim = 1).to(device)
+
 			fin_outp = fin_outp[:,1:,:,:]
 			target =  torch.cat([y, torch.ones(x.shape).to(device)] , dim = 1).to(device)
 			loss = criterion(fin_outp, target)
@@ -163,7 +165,10 @@ def get_teacher_forcing(e, cfg):
 		return False
 def training(cfg):
 	train_loader, val_loader = get_dataloaders(cfg)
-	model = unet(in_channels= 2, n_classes=1).to(device)
+	if(cfg["model_path"] is None):
+		model = unet(in_channels= 2, n_classes=1).to(device)
+	else:
+		model = load_model(model_path).to(device)
 	optimizer = optim.Adam(model.parameters(), lr = cfg["lr"])
 	scheduler = None
 	criterion = torch.nn.BCEWithLogitsLoss(pos_weight=torch.tensor(20.).to(device), reduce='sum')
@@ -197,6 +202,8 @@ def save_model(model, optimizer, scheduler, loss,  cfg, epoch, rank=10):
 				'cfg':cfg
 				}, cfg["runspath"]+"/"+"ckpt_"+str(rank))
 
+def load_model():
+	pass
 if __name__ == '__main__':
 	torch.manual_seed(1337)
 	torch.cuda.manual_seed(1337)
@@ -214,6 +221,7 @@ if __name__ == '__main__':
 	parser.add_argument('-nf','--n_feature', type=int, help='Number of input masks to predict', default=2)
 	parser.add_argument('-wandb','--wandb', type=int, help='use wandb or not', default=1)
 	parser.add_argument('-tf','--teacher_forcing', type=float, help='teacher_forcing', default=0.5)
+	parser.add_argument('-mp','--model_path', type=str, help='train from existing model', default=None)
 
 	args = vars(parser.parse_args())
 
