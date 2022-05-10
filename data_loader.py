@@ -26,10 +26,10 @@ def normalize(img_depth):
 
 class RecClothDataset(Dataset):
 
-    def __init__(self, root_dir,num_masks, use_transform=True, datasize=None):
+    def __init__(self, root_dir, use_transform=True, datasize=None):
         self.root_dir = root_dir
         self.use_transform = use_transform
-        self.num_masks = num_masks
+        self.num_masks = int(len(os.listdir(self.root_dir+"/masks")))
 
         self.rgb_root = os.path.join(self.root_dir,"rgb")
         self.depth_root = os.path.join(self.root_dir,"depth")
