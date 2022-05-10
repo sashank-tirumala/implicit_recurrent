@@ -72,7 +72,7 @@ def recurrent_train(model, train_loader, criterion, optimizer, scheduler, i_ini,
 				if(i == 0):
 					cur_inp = torch.cat([x, fin_outp] , dim = 1).to(device)
 				else:
-					cur_inp = torch.cat([x,torch.sigmoid(outp)], dim=1).to(device)
+					cur_inp = torch.cat([x,(torch.sigmoid(outp)>0.7).to(torch.float)], dim=1).to(device)
 			outp = model(cur_inp)
 			fin_outp = torch.cat([fin_outp, outp] , dim = 1).to(device)
 		fin_outp = fin_outp[:,1:,:,:]
@@ -92,7 +92,8 @@ def recurrent_train(model, train_loader, criterion, optimizer, scheduler, i_ini,
 		if(epoch%10 == 0 and count == 0):
 			rgb = samples['rgb'].permute(0,2,3,1)[0,:,:,:].detach().cpu().numpy()
 			rgb = rgb[... , ::-1]
-			make_plot(torch.sigmoid(fin_outp.detach().cpu()), target.detach().cpu(), rgb, x.detach().cpu(), savefig="train_viz")
+			fin_outp = (torch.sigmoid(fin_outp)>0.7).to(torch.float)
+			make_plot(fin_outp.detach().cpu(), target.detach().cpu(), rgb, x.detach().cpu(), savefig="train_viz")
 			wandb.log({"train_viz": wandb.Image("train_viz.png")})
 			count +=1
 	ious = np.nanmean(ious)
@@ -115,7 +116,7 @@ def validate(model, val_loader, criterion,  using_wandb=False, epoch=0):
 				if(i == 0):
 					cur_inp = torch.cat([x, fin_outp] , dim = 1).to(device)
 				else:
-					cur_inp = torch.cat([x,torch.sigmoid(outp)], dim=1).to(device)
+					cur_inp = torch.cat([x,(torch.sigmoid(outp)>0.7)], dim=1).to(device)
 				outp = model(cur_inp)
 				fin_outp = torch.cat([fin_outp, outp] , dim = 1).to(device)
 
