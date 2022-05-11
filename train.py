@@ -116,7 +116,7 @@ def validate(model, val_loader, criterion,  using_wandb=False, epoch=0):
 				if(i == 0):
 					cur_inp = torch.cat([x, fin_outp] , dim = 1).to(device)
 				else:
-					cur_inp = torch.cat([x,(torch.sigmoid(outp)>0.7)], dim=1).to(device)
+					cur_inp = torch.cat([x,(torch.sigmoid(outp)>0.7).to(torch.float)], dim=1).to(device)
 				outp = model(cur_inp)
 				fin_outp = torch.cat([fin_outp, outp] , dim = 1).to(device)
 
@@ -157,7 +157,6 @@ def get_dataloaders(cfg):
 	train_loader = DataLoader(train_data, batch_size=cfg["batch_size"], shuffle=True)
 	val_loader = DataLoader(val_data, batch_size=cfg["batch_size"], shuffle=True)
 	return train_loader, val_loader
-
 def get_teacher_forcing(e, cfg):
 	num = np.random.random()
 	if(num < cfg["teacher_forcing"]):
