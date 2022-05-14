@@ -166,7 +166,7 @@ def get_teacher_forcing(e, cfg):
 def training(cfg):
 	train_loader, val_loader = get_dataloaders(cfg)
 	if(cfg["model_path"] is None):
-		model = unet(in_channels= 2, n_classes=1).to(device)
+		model = unet(in_channels= 2, n_classes=1, is_batchnorm=False).to(device)
 	else:
 		model = load_model(model_path).to(device)
 	optimizer = optim.Adam(model.parameters(), lr = cfg["lr"])
