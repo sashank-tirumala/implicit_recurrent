@@ -26,7 +26,7 @@ import wandb
 import argparse
 import torchvision.transforms as T
 from utils import weights_init, compute_map, compute_iou, compute_auc, preprocessHeatMap 
-from plot_utils import make_plot
+from plot_utils import make_plot_normal, plot_sample
 
 device = 'cuda' if torch.cuda.is_available() else 'cpu'
 
@@ -77,12 +77,12 @@ def train(model, train_loader, criterion, optimizer, scheduler, i_ini,  using_wa
 		if(epoch%10 == 0 and count == 0):
 			rgb = samples['rgb'].permute(0,2,3,1)[0,:,:,:].detach().cpu().numpy()
 			rgb = rgb[... , ::-1]
-			outp = (torch.sigmoid(outp)>0.7).to(torch.float)
-			# make_plot(fin_outp.detach().cpu(), target.detach().cpu(), rgb, x.detach().cpu(), savefig="train_viz")
+			outp = (torch.sigmoid(outp)>0.7).to(torch.float)[0,:,:,:]
+			make_plot_normal(outp.detach().cpu().numpy(), y[0,:,:,:].detach().cpu().numpy(), rgb, x[0,:,:,:].detach().cpu().numpy(), savefig="imgs/normal_train")
 			if(using_wandb):
-				wandb.log({"train_viz": wandb.Image("train_viz.png")})
+				wandb.log({"train_viz": wandb.Image("imgs/normal_train.png")})
 			count +=1
-		# break
+		break
 	ious = np.nanmean(ious)
 	if(using_wandb):
 		wandb.log({"training_iou":ious})
@@ -107,9 +107,10 @@ def validate(model, val_loader, criterion,  using_wandb=False, epoch=0):
 		if(epoch%10 == 0 and count == 0):
 			rgb = samples['rgb'].permute(0,2,3,1)[0,:,:,:].detach().cpu().numpy()
 			rgb = rgb[... , ::-1]
-			# make_plot(torch.sigmoid(fin_outp.detach().cpu()), target.detach().cpu(), rgb, x.detach().cpu(), savefig="val_viz")
+			outp = (torch.sigmoid(outp)>0.7).to(torch.float)[0,:,:,:]
+			make_plot_normal(outp.detach().cpu().numpy(), y[0,:,:,:].detach().cpu().numpy(), rgb, x[0,:,:,:].detach().cpu().numpy(), savefig="imgs/normal_val")
 			if(using_wandb):
-				wandb.log({"val_viz": wandb.Image("val_viz.png")})
+				wandb.log({"val_viz": wandb.Image("imgs/normal_val.png")})
 			count +=1
 		# break
 	ious = np.nanmean(ious)
@@ -121,7 +122,7 @@ def metrics(outputs, labels):
 	output = torch.sigmoid(outputs[:,:,:,:])
 	output = output.data.cpu().numpy()
 	pred = output.transpose(0, 2, 3, 1)
-	gt = labels.cpu().numpy().transpose(0, 2, 3, 1)
+	gt = labels.clone().cpu().numpy().transpose(0, 2, 3, 1)
 	ious = []
 	aucs = []
 	for g, p in zip(gt, pred):
@@ -203,10 +204,10 @@ def test_training(cfg):
 	training(cfg, testing=True)
 	pass
 if __name__ == '__main__':
-	torch.manual_seed(1337)
-	torch.cuda.manual_seed(1337)
-	np.random.seed(1337)
-	random.seed(1337)
+	# torch.manual_seed(1337)
+	# torch.cuda.manual_seed(1337)
+	# np.random.seed(1337)
+	# random.seed(1337)
 	parser = argparse.ArgumentParser(description='Description of your program')
 	parser.add_argument('-lr','--lr', type=float, help='learning rate', default = 1e-3) 
 	parser.add_argument('-wd','--w_decay', type=float, help='weight decay (regularization)', default=0) 
@@ -222,8 +223,8 @@ if __name__ == '__main__':
 
 	args = vars(parser.parse_args())
 	# test_train(args)
-	# test_val(args)
-	test_training(args)
+	test_val(args)
+	# test_training(args)
 	# if args['wandb']:
 	# 	run = wandb.init(project="CORL2022", entity="stirumal", config=args)
 	# 	args["runspath"] = args["runspath"]+"/"+run.name
