@@ -82,7 +82,7 @@ def train(model, train_loader, criterion, optimizer, scheduler, i_ini,  using_wa
 			if(using_wandb):
 				wandb.log({"train_viz": wandb.Image("train_viz.png")})
 			count +=1
-		break
+		# break
 	ious = np.nanmean(ious)
 	if(using_wandb):
 		wandb.log({"training_iou":ious})
@@ -111,7 +111,7 @@ def validate(model, val_loader, criterion,  using_wandb=False, epoch=0):
 			if(using_wandb):
 				wandb.log({"val_viz": wandb.Image("val_viz.png")})
 			count +=1
-		break
+		# break
 	ious = np.nanmean(ious)
 	if(using_wandb):
 		wandb.log({"val_iou":ious,  "epoch":epoch})
@@ -136,7 +136,7 @@ def get_dataloaders(cfg):
 	val_loader = DataLoader(val_data, batch_size=cfg["batch_size"], shuffle=True)
 	return train_loader, val_loader
 
-def training(cfg):
+def training(cfg, testing=False):
 	train_loader, val_loader = get_dataloaders(cfg)
 	if(cfg["model_path"] is None):
 		model = unet(in_channels= 1, n_classes=cfg["n_cloths"], is_batchnorm=True).to(device)
@@ -157,6 +157,9 @@ def training(cfg):
 			wandb.log({"epoch_time":(stop-start)/60.0})
 		rank = (val_loss < cur_val_loss).sum()
 		save_model(model, optimizer, scheduler, loss,  cfg, e, rank = rank + 1)
+		if(testing):
+			print(loss, val_loss)
+			break
 
 def save_model(model, optimizer, scheduler, loss,  cfg, epoch, rank=10):
 	torch.save({'epoch': epoch, 
@@ -195,6 +198,10 @@ def test_val(cfg):
 	criterion = torch.nn.BCEWithLogitsLoss(pos_weight=torch.tensor(20.).to(device), reduce='sum')
 	loss = validate(model, train_loader, criterion, using_wandb=False, epoch=0)
 	print(loss)
+
+def test_training(cfg):
+	training(cfg, testing=True)
+	pass
 if __name__ == '__main__':
 	torch.manual_seed(1337)
 	torch.cuda.manual_seed(1337)
@@ -214,8 +221,9 @@ if __name__ == '__main__':
 	parser.add_argument('-mp','--model_path', type=str, help='train from existing model', default=None)
 
 	args = vars(parser.parse_args())
-	test_train(args)
-	test_val(args)
+	# test_train(args)
+	# test_val(args)
+	test_training(args)
 	# if args['wandb']:
 	# 	run = wandb.init(project="CORL2022", entity="stirumal", config=args)
 	# 	args["runspath"] = args["runspath"]+"/"+run.name
