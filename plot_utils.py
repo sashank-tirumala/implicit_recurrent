@@ -32,7 +32,6 @@ def plot_sample(sample, savefig=None):
 	depth_img = sample['X'][0, :, :].numpy()
 	imgs = {}
 	imgs["orig"] = rgb_img[..., ::-1] #Converts BGR to RGB
-	print(imgs["orig"].shape)
 	imgs["depth"] = depth_img
 	for i in range(sample['Y'].shape[0]):
 		imgs[str(i)] = sample['Y'][i,:,:].numpy()
@@ -79,7 +78,7 @@ def make_plot(outp, y, rgb, x, savefig=None):
 			plt.imshow(outp[0,int(i/5),:,:])
 		if(i%5 == 4):
 			if(i<5):
-				ax[-1].set_title("Desired Mask")
+				ax[-1].set_title("De25, path,sired Mask")
 			plt.imshow(y[0,int(i/5),:,:])
 	if(savefig == None):
 		plt.savefig("inp_outp_plot")
@@ -88,12 +87,49 @@ def make_plot(outp, y, rgb, x, savefig=None):
 		plt.savefig(savefig)
 		plt.close()
 
+def make_plot_normal(outp, y, rgb, x, savefig=None):
+	depth_img = x[0, :, :]
+	imgs = {}
+	imgs["orig"] = rgb #Converts BGR to RGB
+	imgs["depth"] = depth_img
+	for i in range(y.shape[0]):
+		imgs[str(i)] = y[i,:,:]
+	rows = 2
+	cols = len(imgs.keys())
+	fig = plt.figure()
+	ax = []
+	for i in range(cols):
+		name = list(imgs.keys())[i]
+		ax.append( fig.add_subplot(rows, cols, i+1) )
+		ax[-1].set_title(name)  # set title
+		if(name!="orig"):
+			plt.imshow(imgs[name][:,:])
+		else:
+			plt.imshow(imgs[name])
+	imgs = {}
+	imgs["orig"] = rgb #Converts BGR to RGB
+	imgs["depth"] = depth_img
+	for i in range(outp.shape[0]):
+		imgs[str(i)] = outp[i,:,:]	
+	for i in range(cols):
+		name = list(imgs.keys())[i]
+		ax.append( fig.add_subplot(rows, cols, i+cols+1) )
+		if(name!="orig"):
+			plt.imshow(imgs[name][:,:])
+		else:
+			plt.imshow(imgs[name])
+	if(savefig == None):
+		plt.show()
+	else:
+		plt.savefig(savefig, bbox_inches='tight')
+	plt.close()
 def plot_network():
 	pass
 if(__name__ == "__main__"):
-	path = "/media/YertleDrive4/layer_grasp/dataset/4cloth_new/train"
-	img_num = 1660
+	path = "/media/YertleDrive4/layer_grasp/dataset/4cloth/train"
+	img_num = 0
 	from data_loader import RecClothDataset
 	train_data = RecClothDataset(root_dir=path, use_transform=True)
 	sample = train_data[img_num]
-	plot_idx(25, path, "imgs/t1")
+	# plot_idx(25, path, "imgs/t1")
+	plot_sample(sample, "imgs/sample2")
