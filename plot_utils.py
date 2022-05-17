@@ -8,10 +8,10 @@ def plot_idx(idx, root, savefig=None):
 	imgs["orig"] = rgb_img[... ,::-1] #Converts BGR to RGB
 	imgs["depth"] = depth_img
 	mask_dir = root+"/masks"
-	maskdirs = os.listdir(mask_dir)
-	for i in range(len(maskdirs)):
-		img =  np.load(root+"/masks/"+maskdirs[i]+"/"+str(img_num)+".npy")
-		imgs[str(maskdirs[i])] = img
+	maskdirs = len(os.listdir(mask_dir))
+	for i in range(1, maskdirs+1):
+		img =  np.load(root+"/masks/"+str(i)+"/"+str(img_num)+".npy")
+		imgs[str(i)] = img
 	rows = 1
 	cols = len(imgs.keys())
 	fig = plt.figure()
@@ -91,9 +91,9 @@ def make_plot(outp, y, rgb, x, savefig=None):
 def plot_network():
 	pass
 if(__name__ == "__main__"):
-	path = "/media/YertleDrive4/layer_grasp/dataset/2cloth_rec/test"
-	img_num = 166
+	path = "/media/YertleDrive4/layer_grasp/dataset/4cloth_new/train"
+	img_num = 1660
 	from data_loader import RecClothDataset
-	train_data = RecClothDataset(root_dir="/media/YertleDrive4/layer_grasp/dataset/2cloth_rec/train", num_masks=2, use_transform=True)
+	train_data = RecClothDataset(root_dir=path, use_transform=True)
 	sample = train_data[img_num]
-	plot_sample(sample)
+	plot_idx(25, path, "imgs/t1")
