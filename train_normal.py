@@ -89,18 +89,17 @@ def train(model, train_loader, criterion, optimizer, scheduler, i_ini,  using_wa
 	return i_ini, float(total_loss / (itercount + 1))
 
 def validate(model, val_loader, criterion,  using_wandb=False, epoch=0):
-	model.eval()
 	val_loss = 0
 	ious = []
 	count = 0
 	torch.cuda.empty_cache()
 	for itercount, samples in enumerate(val_loader):  
 		with torch.no_grad():
-			x = samples['X'].to(device)
-			y = samples['Y'].to(device)
+			x = samples['X'].to(device, dtype=torch.float)
+			y = samples['Y'].to(device, dtype=torch.float)
 			outp = model(x)
 			loss = criterion(outp, y)
-			batch_iou = metrics(fin_outp, target)
+			batch_iou = metrics(outp, y)
 			val_loss += float(loss)
 			ious = ious + batch_iou
 			if(using_wandb):
@@ -108,9 +107,11 @@ def validate(model, val_loader, criterion,  using_wandb=False, epoch=0):
 		if(epoch%10 == 0 and count == 0):
 			rgb = samples['rgb'].permute(0,2,3,1)[0,:,:,:].detach().cpu().numpy()
 			rgb = rgb[... , ::-1]
-			make_plot(torch.sigmoid(fin_outp.detach().cpu()), target.detach().cpu(), rgb, x.detach().cpu(), savefig="val_viz")
-			wandb.log({"val_viz": wandb.Image("val_viz.png")})
+			# make_plot(torch.sigmoid(fin_outp.detach().cpu()), target.detach().cpu(), rgb, x.detach().cpu(), savefig="val_viz")
+			if(using_wandb):
+				wandb.log({"val_viz": wandb.Image("val_viz.png")})
 			count +=1
+		break
 	ious = np.nanmean(ious)
 	if(using_wandb):
 		wandb.log({"val_iou":ious,  "epoch":epoch})
@@ -148,14 +149,13 @@ def training(cfg):
 	val_loss= np.array([])
 	for e in range(cfg["epochs"]):
 		start = time.time()
-		i_ini, loss = train(model, train_loader, criterion, optimizer, scheduler, i_ini,  using_wandb=cfg["wandb"], tf=get_teacher_forcing(e, cfg), epoch=e)
+		i_ini, loss = train(model, train_loader, criterion, optimizer, scheduler, i_ini,  using_wandb=cfg["wandb"], epoch=e)
 		cur_val_loss = validate(model, val_loader, criterion, using_wandb=cfg["wandb"], epoch=e)
 		val_loss = np.append(val_loss, cur_val_loss)
 		stop = time.time()
 		if(cfg["wandb"]):
 			wandb.log({"epoch_time":(stop-start)/60.0})
 		rank = (val_loss < cur_val_loss).sum()
-		# print(cur_val_loss, val_loss, rank)
 		save_model(model, optimizer, scheduler, loss,  cfg, e, rank = rank + 1)
 
 def save_model(model, optimizer, scheduler, loss,  cfg, epoch, rank=10):
@@ -183,7 +183,17 @@ def test_train(cfg):
 	optimizer = optim.Adam(model.parameters(), lr = cfg["lr"])
 	scheduler = None
 	criterion = torch.nn.BCEWithLogitsLoss(pos_weight=torch.tensor(20.).to(device), reduce='sum')
-	i_ini, loss = train(model, train_loader, criterion, optimizer, scheduler, i_ini,  using_wandb=False, epoch=0)
+	i_ini, loss = train(model, val_loader, criterion, optimizer, scheduler, i_ini,  using_wandb=False, epoch=0)
+	print(loss)
+
+def test_val(cfg):
+	train_loader, val_loader = get_dataloaders(cfg)
+	i_ini=0
+	model = unet(in_channels= 1, n_classes=cfg["n_cloths"], is_batchnorm=True).to(device)
+	optimizer = optim.Adam(model.parameters(), lr = cfg["lr"])
+	scheduler = None
+	criterion = torch.nn.BCEWithLogitsLoss(pos_weight=torch.tensor(20.).to(device), reduce='sum')
+	loss = validate(model, train_loader, criterion, using_wandb=False, epoch=0)
 	print(loss)
 if __name__ == '__main__':
 	torch.manual_seed(1337)
@@ -205,6 +215,7 @@ if __name__ == '__main__':
 
 	args = vars(parser.parse_args())
 	test_train(args)
+	test_val(args)
 	# if args['wandb']:
 	# 	run = wandb.init(project="CORL2022", entity="stirumal", config=args)
 	# 	args["runspath"] = args["runspath"]+"/"+run.name
