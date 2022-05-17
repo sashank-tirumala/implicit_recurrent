@@ -35,7 +35,7 @@ class RecClothDataset(Dataset):
         self.depth_root = os.path.join(self.root_dir,"depth")
         self.masks_root = os.path.join(self.root_dir,"masks")
         ##Following one indexing
-        masks = os.listdir(self.masks_root)
+        masks = [str(x+1) for x in range(len(os.listdir(self.masks_root)))]
         self.masks_roots = [os.path.join(self.masks_root,f) for f in masks]
         self.img_paths = os.listdir(self.rgb_root)
 
