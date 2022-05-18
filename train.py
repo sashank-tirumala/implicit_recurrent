@@ -93,8 +93,8 @@ def recurrent_train(model, train_loader, criterion, optimizer, scheduler, i_ini,
 			rgb = samples['rgb'].permute(0,2,3,1)[0,:,:,:].detach().cpu().numpy()
 			rgb = rgb[... , ::-1]
 			fin_outp = (torch.sigmoid(fin_outp)>0.7).to(torch.float)
-			make_plot(fin_outp.detach().cpu(), target.detach().cpu(), rgb, x.detach().cpu(), savefig="train_viz")
-			wandb.log({"train_viz": wandb.Image("train_viz.png")})
+			make_plot(fin_outp.detach().cpu(), target.detach().cpu(), rgb, x.detach().cpu(), savefig="imgs/rec_train")
+			wandb.log({"train_viz": wandb.Image("imgs/rec_train.png")})
 			count +=1
 	ious = np.nanmean(ious)
 	if(using_wandb):
@@ -102,7 +102,7 @@ def recurrent_train(model, train_loader, criterion, optimizer, scheduler, i_ini,
 	return i_ini, float(total_loss / (itercount + 1))
 
 def validate(model, val_loader, criterion,  using_wandb=False, epoch=0):
-	model.eval()
+	# model.eval()
 	val_loss = 0
 	ious = []
 	count = 0
@@ -131,8 +131,8 @@ def validate(model, val_loader, criterion,  using_wandb=False, epoch=0):
 		if(epoch%10 == 0 and count == 0):
 			rgb = samples['rgb'].permute(0,2,3,1)[0,:,:,:].detach().cpu().numpy()
 			rgb = rgb[... , ::-1]
-			make_plot(torch.sigmoid(fin_outp.detach().cpu()), target.detach().cpu(), rgb, x.detach().cpu(), savefig="val_viz")
-			wandb.log({"val_viz": wandb.Image("val_viz.png")})
+			make_plot(torch.sigmoid(fin_outp.detach().cpu()), target.detach().cpu(), rgb, x.detach().cpu(), savefig="imgs/rec_val")
+			wandb.log({"val_viz": wandb.Image("imgs/rec_val.png")})
 			count +=1
 	ious = np.nanmean(ious)
 	if(using_wandb):
@@ -166,7 +166,7 @@ def get_teacher_forcing(e, cfg):
 def training(cfg):
 	train_loader, val_loader = get_dataloaders(cfg)
 	if(cfg["model_path"] is None):
-		model = unet(in_channels= 2, n_classes=1, is_batchnorm=False).to(device)
+		model = unet(in_channels= 2, n_classes=1, is_batchnorm=True).to(device)
 	else:
 		model = load_model(model_path).to(device)
 	optimizer = optim.Adam(model.parameters(), lr = cfg["lr"])

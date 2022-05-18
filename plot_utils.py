@@ -52,7 +52,7 @@ def plot_sample(sample, savefig=None):
 
 def make_plot(outp, y, rgb, x, savefig=None):
 	cols = 5
-	rows = 3
+	rows = y.shape[1]
 	fig = plt.figure()
 	fig.tight_layout()
 	ax = []

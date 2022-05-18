@@ -82,7 +82,6 @@ def train(model, train_loader, criterion, optimizer, scheduler, i_ini,  using_wa
 			if(using_wandb):
 				wandb.log({"train_viz": wandb.Image("imgs/normal_train.png")})
 			count +=1
-		break
 	ious = np.nanmean(ious)
 	if(using_wandb):
 		wandb.log({"training_iou":ious})
@@ -223,11 +222,11 @@ if __name__ == '__main__':
 
 	args = vars(parser.parse_args())
 	# test_train(args)
-	test_val(args)
+	# test_val(args)
 	# test_training(args)
-	# if args['wandb']:
-	# 	run = wandb.init(project="CORL2022", entity="stirumal", config=args)
-	# 	args["runspath"] = args["runspath"]+"/"+run.name
-	# 	os.makedirs(args["runspath"])
-	# training(args)
+	if args['wandb']:
+		run = wandb.init(project="CORL2022", entity="stirumal", config=args)
+		args["runspath"] = args["runspath"]+"/"+run.name
+		os.makedirs(args["runspath"])
+	training(args)
 	
