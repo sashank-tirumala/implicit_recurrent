@@ -171,6 +171,8 @@ def training(cfg):
 		model = load_model(model_path).to(device)
 	optimizer = optim.Adam(model.parameters(), lr = cfg["lr"])
 	scheduler = None
+	if(cfg["scheduler"]):
+		scheduler = torch.optim.lr_scheduler.CosineAnnealingLR(optimizer, len(train_loader)*cfg["epochs"], eta_min=1e-6, last_epoch=- 1, verbose=False)
 	criterion = torch.nn.BCEWithLogitsLoss(pos_weight=torch.tensor(20.).to(device), reduce='sum')
 	i_ini = 0
 	val_loss= np.array([])
@@ -222,6 +224,7 @@ if __name__ == '__main__':
 	parser.add_argument('-wandb','--wandb', type=int, help='use wandb or not', default=1)
 	parser.add_argument('-tf','--teacher_forcing', type=float, help='teacher_forcing', default=0.5)
 	parser.add_argument('-mp','--model_path', type=str, help='train from existing model', default=None)
+	parser.add_argument('-sch','--scheduler', type=int, help='Use lr-scheduler', default=0)
 
 	args = vars(parser.parse_args())
 

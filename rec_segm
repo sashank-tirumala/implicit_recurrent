@@ -1,0 +1,20 @@
+#!/bin/bash
+#SBATCH --nodes=1
+#SBATCH --partition=GPU
+#SBATCH --ntasks-per-node=1
+#SBATCH --time=96:00:00 #**TODO CHANGE**
+#SBATCH --gres=gpu:1
+#SBATCH --mem=64G #**TODO CHANGE**
+#SBATCH --nodelist=compute-0-[9] #**TODO CHANGE BASED ON WHICH CLUSTER YOU WANT TO USE**
+#SBATCH --mail-type=END,FAIL             # Mail events (NONE, BEGIN, END, FAIL, ALL)
+#SBATCH --mail-user=stirumal@andrew.cmu.edu     #**TODO PLEASE CHANGE TO YOUR MAIL**
+set -x
+set -u
+set -e
+module load singularity
+module load cuda-80
+**#cuda_visible_device chooses the GPU NUmber. Check which GPU is free
+#from the resource monitor**
+
+CUDA_DEVICE_ORDER=PCI_BUS_ID CUDA_VISIBLE_DEVICES=0 singularity exec --nv /home/stirumal/singularity/pytorch.sif python train.py -lr 1e-3 -bs 4 -dp /home/stirumal/scratch/dataset/4cloth -wandb 1 -tf 0.8 -e 1000 -rp /home/stirumal/scratch/runs -sch 1
+```
