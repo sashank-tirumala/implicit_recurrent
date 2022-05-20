@@ -52,12 +52,13 @@ device = 'cuda' if torch.cuda.is_available() else 'cpu'
 # 		i_ini += 1
 # 	return i_ini, float(total_loss / (i + 1))
 
-def recurrent_train(model, train_loader, criterion, optimizer, scheduler, i_ini,  using_wandb=False, tf=True, epoch=0):
+def recurrent_train(model, train_loader, criterion, optimizer, scheduler, i_ini,  using_wandb=False, tf=0.7, epoch=0):
 	model.train()
 	total_loss = 0
 	ious = []
 	count = 0
 	torch.cuda.empty_cache()
+	tf = get_teacher_forcing(tf)
 	for itercount, samples in enumerate(train_loader):  
 		x = samples['X'].to(device)
 		y = samples['Y'].to(device)
@@ -96,6 +97,7 @@ def recurrent_train(model, train_loader, criterion, optimizer, scheduler, i_ini,
 			make_plot(fin_outp.detach().cpu(), target.detach().cpu(), rgb, x.detach().cpu(), savefig="imgs/rec_train")
 			wandb.log({"train_viz": wandb.Image("imgs/rec_train.png")})
 			count +=1
+		break
 	ious = np.nanmean(ious)
 	if(using_wandb):
 		wandb.log({"training_iou":ious})
@@ -126,6 +128,7 @@ def validate(model, val_loader, criterion,  using_wandb=False, epoch=0):
 			batch_iou = metrics(fin_outp, target)
 			val_loss += float(loss)
 			ious = ious + batch_iou
+			break
 			if(using_wandb):
 				wandb.log({"val_loss":float(val_loss / (itercount + 1))})
 		if(epoch%10 == 0 and count == 0):
@@ -157,9 +160,9 @@ def get_dataloaders(cfg):
 	train_loader = DataLoader(train_data, batch_size=cfg["batch_size"], shuffle=True)
 	val_loader = DataLoader(val_data, batch_size=cfg["batch_size"], shuffle=True)
 	return train_loader, val_loader
-def get_teacher_forcing(e, cfg):
+def get_teacher_forcing(rate):
 	num = np.random.random()
-	if(num < cfg["teacher_forcing"]):
+	if(num < rate):
 		return True
 	else:
 		return False
@@ -178,7 +181,7 @@ def training(cfg):
 	val_loss= np.array([])
 	for e in range(cfg["epochs"]):
 		start = time.time()
-		i_ini, loss = recurrent_train(model, train_loader, criterion, optimizer, scheduler, i_ini,  using_wandb=cfg["wandb"], tf=get_teacher_forcing(e, cfg), epoch=e)
+		i_ini, loss = recurrent_train(model, train_loader, criterion, optimizer, scheduler, i_ini,  using_wandb=cfg["wandb"], tf=cfg["teacher_forcing"], epoch=e)
 		cur_val_loss = validate(model, val_loader, criterion, using_wandb=cfg["wandb"], epoch=e)
 		val_loss = np.append(val_loss, cur_val_loss)
 
@@ -229,7 +232,7 @@ if __name__ == '__main__':
 	args = vars(parser.parse_args())
 
 	if args['wandb']:
-		run = wandb.init(project="CORL2022", entity="stirumal", config=args)
+		run = wandb.init(project="test", entity="stirumal", config=args)
 		args["runspath"] = args["runspath"]+"/"+run.name
 		os.makedirs(args["runspath"])
 	training(args)
