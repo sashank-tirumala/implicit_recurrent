@@ -52,13 +52,13 @@ device = 'cuda' if torch.cuda.is_available() else 'cpu'
 # 		i_ini += 1
 # 	return i_ini, float(total_loss / (i + 1))
 
-def recurrent_train(model, train_loader, criterion, optimizer, scheduler, i_ini,  using_wandb=False, tf=0.7, epoch=0):
+def recurrent_train(model, train_loader, criterion, optimizer, scheduler, i_ini,  using_wandb=False, tf_rate=0.7, epoch=0):
 	model.train()
 	total_loss = 0
 	ious = []
 	count = 0
 	torch.cuda.empty_cache()
-	tf = get_teacher_forcing(tf)
+	tf = get_teacher_forcing(tf_rate)
 	for itercount, samples in enumerate(train_loader):  
 		x = samples['X'].to(device)
 		y = samples['Y'].to(device)
@@ -179,7 +179,7 @@ def training(cfg):
 	val_loss= np.array([])
 	for e in range(cfg["epochs"]):
 		start = time.time()
-		i_ini, loss = recurrent_train(model, train_loader, criterion, optimizer, scheduler, i_ini,  using_wandb=cfg["wandb"], tf=cfg["teacher_forcing"], epoch=e)
+		i_ini, loss = recurrent_train(model, train_loader, criterion, optimizer, scheduler, i_ini,  using_wandb=cfg["wandb"], tf_rate=cfg["teacher_forcing"], epoch=e)
 		cur_val_loss = validate(model, val_loader, criterion, using_wandb=cfg["wandb"], epoch=e)
 		val_loss = np.append(val_loss, cur_val_loss)
 
