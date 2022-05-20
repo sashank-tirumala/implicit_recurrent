@@ -97,7 +97,6 @@ def recurrent_train(model, train_loader, criterion, optimizer, scheduler, i_ini,
 			make_plot(fin_outp.detach().cpu(), target.detach().cpu(), rgb, x.detach().cpu(), savefig="imgs/rec_train")
 			wandb.log({"train_viz": wandb.Image("imgs/rec_train.png")})
 			count +=1
-		break
 	ious = np.nanmean(ious)
 	if(using_wandb):
 		wandb.log({"training_iou":ious})
@@ -128,7 +127,6 @@ def validate(model, val_loader, criterion,  using_wandb=False, epoch=0):
 			batch_iou = metrics(fin_outp, target)
 			val_loss += float(loss)
 			ious = ious + batch_iou
-			break
 			if(using_wandb):
 				wandb.log({"val_loss":float(val_loss / (itercount + 1))})
 		if(epoch%10 == 0 and count == 0):
@@ -232,7 +230,7 @@ if __name__ == '__main__':
 	args = vars(parser.parse_args())
 
 	if args['wandb']:
-		run = wandb.init(project="test", entity="stirumal", config=args)
+		run = wandb.init(project="CORL2022", entity="stirumal", config=args)
 		args["runspath"] = args["runspath"]+"/"+run.name
 		os.makedirs(args["runspath"])
 	training(args)
