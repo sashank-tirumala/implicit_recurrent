@@ -56,6 +56,7 @@ def make_plot(outp, y, rgb, x, savefig=None):
 	fig = plt.figure()
 	fig.tight_layout()
 	ax = []
+	inp_mask = np.zeros((outp.shape[2], outp.shape[3]))
 	for i in range(cols*rows):
 		ax.append(fig.add_subplot(rows, cols, i+1) )
 		if(i%5 == 0):
@@ -71,15 +72,16 @@ def make_plot(outp, y, rgb, x, savefig=None):
 				ax[-1].set_title("Input Mask")
 				plt.imshow(np.zeros(rgb.shape[:-1]))
 			else:
-				plt.imshow(outp[0,int(i/5) -1,:,:])
+				plt.imshow(inp_mask[:,:])
 		if(i%5 == 3):
 			if(i<5):
 				ax[-1].set_title("Output Mask")
 			plt.imshow(outp[0,int(i/5),:,:])
 		if(i%5 == 4):
 			if(i<5):
-				ax[-1].set_title("De25, path,sired Mask")
+				ax[-1].set_title("Desired Mask")
 			plt.imshow(y[0,int(i/5),:,:])
+		inp_mask = inp_mask + outp[0,int(i/5),:,:].numpy()
 	if(savefig == None):
 		plt.savefig("inp_outp_plot")
 		plt.close()

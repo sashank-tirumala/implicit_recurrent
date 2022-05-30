@@ -8,7 +8,6 @@ import time
 import random
 import numpy as np
 import matplotlib.pyplot as plt
-from tqdm import tqdm
 from datetime import datetime
 from unet import unet
 from data_loader import RecClothDataset as ClothDataset
@@ -52,28 +51,32 @@ device = 'cuda' if torch.cuda.is_available() else 'cpu'
 # 		i_ini += 1
 # 	return i_ini, float(total_loss / (i + 1))
 
-def recurrent_train(model, train_loader, criterion, optimizer, scheduler, i_ini,  using_wandb=False, tf_rate=0.7, epoch=0):
+def recurrent_train(model, train_loader, criterion, optimizer, scheduler, i_ini,  using_wandb=False, tf_rate=0.7, epoch=0, test=False):
 	model.train()
 	total_loss = 0
 	ious = []
 	count = 0
 	torch.cuda.empty_cache()
 	tf = get_teacher_forcing(tf_rate)
+	div_factor = 1 if test else 10
 	for itercount, samples in enumerate(train_loader):  
 		x = samples['X'].to(device)
 		y = samples['Y'].to(device)
+		inp_mask = torch.zeros(x.shape).to(device)
 		fin_outp = torch.zeros(x.shape).to(device)
 		for i in range(y.shape[1]+1):
 			if tf:
 				if(i == 0):
-					cur_inp = torch.cat([x, fin_outp] , dim = 1).to(device)
+					cur_inp = torch.cat([x, inp_mask] , dim = 1).to(device)
 				else:
-					cur_inp = torch.cat([x,y[:,i-1,:,:].unsqueeze(1)], dim=1).to(device)
+					inp_mask = inp_mask + y[:,i-1,:,:].unsqueeze(1)
+					cur_inp = torch.cat([x,inp_mask], dim=1).to(device)
 			else:
 				if(i == 0):
-					cur_inp = torch.cat([x, fin_outp] , dim = 1).to(device)
+					cur_inp = torch.cat([x, inp_mask] , dim = 1).to(device)
 				else:
-					cur_inp = torch.cat([x,(torch.sigmoid(outp)>0.7).to(torch.float)], dim=1).to(device)
+					inp_mask = inp_mask + (torch.sigmoid(outp)>0.7)
+					cur_inp = torch.cat([x,inp_mask.to(torch.float)], dim=1).to(device)
 			outp = model(cur_inp)
 			fin_outp = torch.cat([fin_outp, outp] , dim = 1).to(device)
 		fin_outp = fin_outp[:,1:,:,:]
@@ -90,24 +93,27 @@ def recurrent_train(model, train_loader, criterion, optimizer, scheduler, i_ini,
 		i_ini += 1
 		batch_iou = metrics(fin_outp, target)
 		ious = ious + batch_iou
-		if(epoch%10 == 0 and count == 0):
+		if(epoch%div_factor == 0 and count == 0):
 			rgb = samples['rgb'].permute(0,2,3,1)[0,:,:,:].detach().cpu().numpy()
 			rgb = rgb[... , ::-1]
 			fin_outp = (torch.sigmoid(fin_outp)>0.7).to(torch.float)
 			make_plot(fin_outp.detach().cpu(), target.detach().cpu(), rgb, x.detach().cpu(), savefig="imgs/rec_train")
 			wandb.log({"train_viz": wandb.Image("imgs/rec_train.png")})
 			count +=1
+		if(test):
+			break
 	ious = np.nanmean(ious)
 	if(using_wandb):
 		wandb.log({"training_iou":ious})
 	return i_ini, float(total_loss / (itercount + 1))
 
-def validate(model, val_loader, criterion,  using_wandb=False, epoch=0):
+def validate(model, val_loader, criterion,  using_wandb=False, epoch=0, test = False):
 	# model.eval()
 	val_loss = 0
 	ious = []
 	count = 0
 	torch.cuda.empty_cache()
+	div_factor = 1 if test else 10
 	for itercount, samples in enumerate(val_loader):  
 		with torch.no_grad():
 			x = samples['X'].to(device)
@@ -129,12 +135,15 @@ def validate(model, val_loader, criterion,  using_wandb=False, epoch=0):
 			ious = ious + batch_iou
 			if(using_wandb):
 				wandb.log({"val_loss":float(val_loss / (itercount + 1))})
-		if(epoch%10 == 0 and count == 0):
+		if(epoch%div_factor == 0 and count == 0):
 			rgb = samples['rgb'].permute(0,2,3,1)[0,:,:,:].detach().cpu().numpy()
 			rgb = rgb[... , ::-1]
+			fin_outp = (torch.sigmoid(fin_outp)>0.7).to(torch.float)
 			make_plot(torch.sigmoid(fin_outp.detach().cpu()), target.detach().cpu(), rgb, x.detach().cpu(), savefig="imgs/rec_val")
 			wandb.log({"val_viz": wandb.Image("imgs/rec_val.png")})
 			count +=1
+		if(test):
+			break
 	ious = np.nanmean(ious)
 	if(using_wandb):
 		wandb.log({"val_iou":ious,  "epoch":epoch})
@@ -179,8 +188,8 @@ def training(cfg):
 	val_loss= np.array([])
 	for e in range(cfg["epochs"]):
 		start = time.time()
-		i_ini, loss = recurrent_train(model, train_loader, criterion, optimizer, scheduler, i_ini,  using_wandb=cfg["wandb"], tf_rate=cfg["teacher_forcing"], epoch=e)
-		cur_val_loss = validate(model, val_loader, criterion, using_wandb=cfg["wandb"], epoch=e)
+		i_ini, loss = recurrent_train(model, train_loader, criterion, optimizer, scheduler, i_ini,  using_wandb=cfg["wandb"], tf_rate=cfg["teacher_forcing"], epoch=e, test = cfg["test"])
+		cur_val_loss = validate(model, val_loader, criterion, using_wandb=cfg["wandb"], epoch=e, test = cfg["test"])
 		val_loss = np.append(val_loss, cur_val_loss)
 
 		stop = time.time()
@@ -226,11 +235,15 @@ if __name__ == '__main__':
 	parser.add_argument('-tf','--teacher_forcing', type=float, help='teacher_forcing', default=0.5)
 	parser.add_argument('-mp','--model_path', type=str, help='train from existing model', default=None)
 	parser.add_argument('-sch','--scheduler', type=int, help='Use lr-scheduler', default=0)
+	parser.add_argument('-tst','--test', type=int, help='in test mode', default=0)
 
 	args = vars(parser.parse_args())
 
 	if args['wandb']:
-		run = wandb.init(project="CORL2022", entity="stirumal", config=args)
+		if(args['test']):
+			run = wandb.init(project="test", entity="stirumal", config=args)
+		else:
+			run = wandb.init(project="CORL2022", entity="stirumal", config=args)
 		args["runspath"] = args["runspath"]+"/"+run.name
 		os.makedirs(args["runspath"])
 	training(args)
